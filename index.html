@@ -61,7 +61,7 @@
         }
 
         #game-wrapper {
-            display: none; /* Hidden until handshake succeeds */
+            display: none; 
             align-items: center;
             gap: 30px;
             background: #16161a;
@@ -112,7 +112,7 @@
             border: 3px solid #3a3a42;
             border-radius: 6px;
             background-color: #145a2d;
-            cursor: none; /* Hide hardware pointer inside play boundaries */
+            cursor: none; 
         }
 
         #game-over-screen {
@@ -208,8 +208,8 @@
         let isHost = false; 
         let gameActive = false;
 
-        let scores = { player1: 0, player2: 0 };
-        let totalTime = 120; // Increased to 2 Minutes
+        let scores = { player1: 0, player2: 0 }; // player1 = Blue(Host), player2 = Red(Guest)
+        let totalTime = 120; 
         let timerInterval = null;
 
         const padY = 60; 
@@ -220,14 +220,13 @@
 
         // State Core Engine values
         const ball = { x: 230, y: 340, vx: 0, vy: 0, radius: 11, mass: 1, color: "#ffffff" };
-        const p1 = { x: 230, y: 500, targetX: 230, targetY: 500, vx: 0, vy: 0, radius: 21, mass: 4, color: "#00bfff", isDashing: false, dashTimer: 0 };
-        const p2 = { x: 230, y: 180, targetX: 230, targetY: 180, vx: 0, vy: 0, radius: 21, mass: 4, color: "#ff4500", isDashing: false, dashTimer: 0 };
+        const p1 = { x: 230, y: 500, targetX: 230, targetY: 500, vx: 0, vy: 0, radius: 21, mass: 4, color: "#00bfff", isDashing: false, dashTimer: 0 }; // Blue
+        const p2 = { x: 230, y: 180, targetX: 230, targetY: 180, vx: 0, vy: 0, radius: 21, mass: 4, color: "#ff4500", isDashing: false, dashTimer: 0 }; // Red
 
         const friction = 0.982;
         const dashCooldownMax = 45; 
         let myCooldown = 0;
 
-        // Setup signaling node links via PeerJS backend routing
         function initNetwork() {
             const randomId = Math.floor(1000 + Math.random() * 9000).toString();
             peer = new Peer('strk-' + randomId);
@@ -271,7 +270,7 @@
                 document.getElementById("game-wrapper").style.display = "flex";
                 
                 const roleDisplay = document.getElementById("role-value");
-                roleDisplay.innerText = isHost ? "BLUE (BOTTOM)" : "RED (TOP)";
+                roleDisplay.innerText = isHost ? "BLUE (BOTTOM)" : "RED (BOTTOM)";
                 roleDisplay.style.color = isHost ? "#00bfff" : "#ff4500";
                 
                 gameActive = true;
@@ -279,15 +278,14 @@
                 loop();
             });
 
-            // Master data parsing network routes
             conn.on('data', (data) => {
                 if (isHost) {
-                    // Host accepts raw coordinates sent from client cursor events
-                    p2.targetX = data.mouseX;
-                    p2.targetY = data.mouseY;
+                    // Host maps the incoming inverted data back to raw canvas spacing
+                    p2.targetX = canvas.width - data.mouseX;
+                    p2.targetY = canvas.height - data.mouseY;
                     if (data.clickDash) triggerDash(p2);
                 } else {
-                    // Guest acts as receiver, parsing frame-by-frame master calculation packets
+                    // Guest acts as receiver
                     ball.x = data.bx; ball.y = data.by;
                     p1.x = data.p1x; p1.y = data.p1y; p1.isDashing = data.p1d;
                     p2.x = data.p2x; p2.y = data.p2y; p2.isDashing = data.p2d;
@@ -295,11 +293,13 @@
                     totalTime = data.time;
                     goalFlash = data.flash;
                     
+                    // FIXED: explicitly assigned to proper DOM targets
                     document.getElementById("p-score").innerText = scores.player1;
                     document.getElementById("a-score").innerText = scores.player2;
                     updateTimerUI();
                     
-                    if (totalTime <= 0) endMatch();
+                    // FIXED: process game over trigger sent by Host packet instruction
+                    if (data.matchOver) endMatch();
                 }
             });
 
@@ -338,7 +338,7 @@
             targetPlayer.dashTimer = 7; 
         }
 
-        // --- EXCLUSIVE PC MOUSE TRACKING ENGINE ---
+        // --- MOUSE TRACKING WITH ON-THE-FLY INVERSION FOR P2 ---
         window.addEventListener("mousemove", (e) => {
             if (!gameActive) return;
 
@@ -347,15 +347,13 @@
             let rawY = e.clientY - rect.top;
 
             if (isHost) {
-                // Host handles Blue Paddle (Locked inside bottom court half)
                 p1.targetX = Math.min(Math.max(rawX, p1.radius), canvas.width - p1.radius);
                 p1.targetY = Math.min(Math.max(rawY, canvas.height / 2 + p1.radius), canvas.height - padY - p1.radius);
             } else {
-                // Guest handles Red Paddle (Locked inside top court half)
+                // FIXED: Invert coordinates locally so P2 physically feels like they're playing at the bottom half
                 let boundedX = Math.min(Math.max(rawX, p2.radius), canvas.width - p2.radius);
-                let boundedY = Math.min(Math.max(rawY, padY + p2.radius), canvas.height / 2 - p2.radius);
+                let boundedY = Math.min(Math.max(rawY, canvas.height / 2 + p2.radius), canvas.height - padY - p2.radius);
                 
-                // FIXED: Red transmits the position to the host *during* movement
                 if (conn && conn.open) {
                     conn.send({ mouseX: boundedX, mouseY: boundedY, clickDash: false });
                 }
@@ -369,7 +367,6 @@
                 triggerDash(p1);
                 myCooldown = dashCooldownMax;
             } else {
-                // Tell the host to trigger a dash execution loop for paddle 2
                 if (conn && conn.open) {
                     conn.send({ mouseX: p2.targetX, mouseY: p2.targetY, clickDash: true });
                     myCooldown = dashCooldownMax;
@@ -443,11 +440,9 @@
             resolveCollisions(p2, ball, p2.isDashing);
             resolveCollisions(p1, p2);
 
-            // Wall check bounce dynamics
             if (ball.x - ball.radius < 0) { ball.x = ball.radius; ball.vx *= -0.8; }
             if (ball.x + ball.radius > canvas.width) { ball.x = canvas.width - ball.radius; ball.vx *= -0.8; }
 
-            // Goal post collision detection routines
             if (ball.y - ball.radius < padY) {
                 if (ball.x > goalX && ball.x < goalX + goalWidth) {
                     scores.player2++; goalFlash = 10; resetPositions();
@@ -468,7 +463,19 @@
             ball.x = 230; ball.y = 340; ball.vx = 0; ball.vy = 0;
         }
 
-        function drawField() {
+        // --- VIEWPORT RENDERING WRAPPER (Inverts Entire Matrix on Guest side) ---
+        function renderScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            
+            // FIXED: If user is the Guest (P2), invert the canvas context matrix visually 180 degrees
+            if (!isHost) {
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(Math.PI);
+                ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            }
+
+            // Draw field layout lines
             ctx.fillStyle = "#1b7a3e"; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#156331";
             for(let i = padY; i < canvas.height - padY; i += 60) {
@@ -483,6 +490,18 @@
             ctx.fillRect(goalX, canvas.height - padY, goalWidth, goalHeight);
             ctx.strokeStyle = "#ff4500"; ctx.strokeRect(goalX, padY - goalHeight, goalWidth, goalHeight);
             ctx.strokeStyle = "#00bfff"; ctx.strokeRect(goalX, canvas.height - padY, goalWidth, goalHeight);
+
+            // Draw dynamic entities
+            drawEntity(p1, p1.isDashing ? "#ffff00" : "#ffffff");
+            drawEntity(p2, p2.isDashing ? "#ffff00" : "#ffffff");
+            drawEntity(ball, "#222222");
+
+            if (goalFlash > 0) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${goalFlash / 10})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            ctx.restore();
         }
 
         function drawEntity(obj, outlineColor = "#ffffff") {
@@ -496,29 +515,19 @@
 
             if (isHost) {
                 updateHostPhysics();
-                // Broadcast master data state positions down to connected client peer link 
                 conn.send({
                     bx: ball.x, by: ball.y,
                     p1x: p1.x, p1y: p1.y, p1d: p1.isDashing,
                     p2x: p2.x, p2y: p2.y, p2d: p2.isDashing,
-                    scores: scores, time: totalTime, flash: goalFlash
+                    scores: scores, time: totalTime, flash: goalFlash,
+                    matchOver: (totalTime <= 0)
                 });
+                if (totalTime <= 0) endMatch();
             }
 
             if (myCooldown > 0) myCooldown--;
 
-            // Render execution routines
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawField();
-            drawEntity(p1, p1.isDashing ? "#ffff00" : "#ffffff");
-            drawEntity(p2, p2.isDashing ? "#ffff00" : "#ffffff");
-            drawEntity(ball, "#222222");
-
-            if (goalFlash > 0) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${goalFlash / 10})`;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
-
+            renderScene();
             requestAnimationFrame(loop);
         }
 
