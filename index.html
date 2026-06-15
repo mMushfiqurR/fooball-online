@@ -99,8 +99,10 @@
             font-weight: 900;
         }
         
-        #p-score { color: #00bfff; }
-        #a-score { color: #ff4500; }
+        /* FIXED: Colors mapped correctly to their matching team IDs */
+        #p-score { color: #00bfff; } /* Blue Team Score Text */
+        #a-score { color: #ff4500; } /* Red Team Score Text */
+        
         #timer-value { color: #f1c40f; font-size: 32px; font-weight: 800; font-family: monospace; }
         #role-value { font-weight: 900; font-size: 16px; }
 
@@ -280,12 +282,10 @@
 
             conn.on('data', (data) => {
                 if (isHost) {
-                    // Host maps the incoming inverted data back to raw canvas spacing
                     p2.targetX = canvas.width - data.mouseX;
                     p2.targetY = canvas.height - data.mouseY;
                     if (data.clickDash) triggerDash(p2);
                 } else {
-                    // Guest acts as receiver
                     ball.x = data.bx; ball.y = data.by;
                     p1.x = data.p1x; p1.y = data.p1y; p1.isDashing = data.p1d;
                     p2.x = data.p2x; p2.y = data.p2y; p2.isDashing = data.p2d;
@@ -293,12 +293,10 @@
                     totalTime = data.time;
                     goalFlash = data.flash;
                     
-                    // FIXED: explicitly assigned to proper DOM targets
                     document.getElementById("p-score").innerText = scores.player1;
                     document.getElementById("a-score").innerText = scores.player2;
                     updateTimerUI();
                     
-                    // FIXED: process game over trigger sent by Host packet instruction
                     if (data.matchOver) endMatch();
                 }
             });
@@ -338,7 +336,6 @@
             targetPlayer.dashTimer = 7; 
         }
 
-        // --- MOUSE TRACKING WITH ON-THE-FLY INVERSION FOR P2 ---
         window.addEventListener("mousemove", (e) => {
             if (!gameActive) return;
 
@@ -350,7 +347,6 @@
                 p1.targetX = Math.min(Math.max(rawX, p1.radius), canvas.width - p1.radius);
                 p1.targetY = Math.min(Math.max(rawY, canvas.height / 2 + p1.radius), canvas.height - padY - p1.radius);
             } else {
-                // FIXED: Invert coordinates locally so P2 physically feels like they're playing at the bottom half
                 let boundedX = Math.min(Math.max(rawX, p2.radius), canvas.width - p2.radius);
                 let boundedY = Math.min(Math.max(rawY, canvas.height / 2 + p2.radius), canvas.height - padY - p2.radius);
                 
@@ -406,7 +402,6 @@
         }
 
         function updateHostPhysics() {
-            // Process Player 1 Movements (Host)
             let prevP1X = p1.x; let prevP1Y = p1.y;
             if (p1.isDashing) {
                 let angle = Math.atan2(p1.targetY - p1.y, p1.targetX - p1.x);
@@ -419,7 +414,6 @@
             }
             p1.vx = p1.x - prevP1X; p1.vy = p1.y - prevP1Y;
 
-            // Process Player 2 Movements (Guest)
             let prevP2X = p2.x; let prevP2Y = p2.y;
             if (p2.isDashing) {
                 let angle = Math.atan2(p2.targetY - p2.y, p2.targetX - p2.x);
@@ -432,7 +426,6 @@
             }
             p2.vx = p2.x - prevP2X; p2.vy = p2.y - prevP2Y;
 
-            // Master Ball Vector Calculations
             ball.vx *= friction; ball.vy *= friction;
             ball.x += ball.vx; ball.y += ball.vy;
 
@@ -463,19 +456,16 @@
             ball.x = 230; ball.y = 340; ball.vx = 0; ball.vy = 0;
         }
 
-        // --- VIEWPORT RENDERING WRAPPER (Inverts Entire Matrix on Guest side) ---
         function renderScene() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save();
             
-            // FIXED: If user is the Guest (P2), invert the canvas context matrix visually 180 degrees
             if (!isHost) {
                 ctx.translate(canvas.width / 2, canvas.height / 2);
                 ctx.rotate(Math.PI);
                 ctx.translate(-canvas.width / 2, -canvas.height / 2);
             }
 
-            // Draw field layout lines
             ctx.fillStyle = "#1b7a3e"; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#156331";
             for(let i = padY; i < canvas.height - padY; i += 60) {
@@ -491,7 +481,6 @@
             ctx.strokeStyle = "#ff4500"; ctx.strokeRect(goalX, padY - goalHeight, goalWidth, goalHeight);
             ctx.strokeStyle = "#00bfff"; ctx.strokeRect(goalX, canvas.height - padY, goalWidth, goalHeight);
 
-            // Draw dynamic entities
             drawEntity(p1, p1.isDashing ? "#ffff00" : "#ffffff");
             drawEntity(p2, p2.isDashing ? "#ffff00" : "#ffffff");
             drawEntity(ball, "#222222");
