@@ -201,7 +201,7 @@
         </div>
     </div>
 
-    <script>
+   <script>
         const canvas = document.getElementById("arena");
         const ctx = canvas.getContext("2d");
 
@@ -232,13 +232,28 @@
         function initNetwork() {
             const randomId = Math.floor(1000 + Math.random() * 9000).toString();
             
-            // FIXED: Added global iceServers configuration to allow wide-area internet traversal
+            // FIXED: Added public TURN relay servers to completely bypass Symmetric NAT firewalls
             peer = new Peer('strk-' + randomId, {
                 config: {
                     iceServers: [
-                        { url: 'stun:stun.l.google.com:19302' },
-                        { url: 'stun:stun1.l.google.com:19302' },
-                        { url: 'stun:stun2.l.google.com:19302' }
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        // Free Open Relay fallback servers mapping ports 80/443 (disguises game data as basic web traffic)
+                        { 
+                            urls: 'turn:openrelay.metered.ca:80', 
+                            username: 'openrelayproject', 
+                            credential: 'openrelayproject' 
+                        },
+                        { 
+                            urls: 'turn:openrelay.metered.ca:443', 
+                            username: 'openrelayproject', 
+                            credential: 'openrelayproject' 
+                        },
+                        { 
+                            urls: 'turn:openrelay.metered.ca:443?transport=tcp', 
+                            username: 'openrelayproject', 
+                            credential: 'openrelayproject' 
+                        }
                     ]
                 }
             });
