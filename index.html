@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Arena Strikers: PC Online Championship</title>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -169,7 +169,7 @@
 
             <div class="panel-box">
                 <div class="score-title">TIME REMAINING</div>
-                <div id="timer-value">01:00</div>
+                <div id="timer-value">02:00</div>
             </div>
 
             <div class="panel-box">
@@ -209,7 +209,7 @@
         let gameActive = false;
 
         let scores = { player1: 0, player2: 0 };
-        let totalTime = 60; 
+        let totalTime = 120; // Increased to 2 Minutes
         let timerInterval = null;
 
         const padY = 60; 
@@ -239,7 +239,7 @@
             });
 
             peer.on('connection', (incomingConn) => {
-                if (conn) return; // Block extra users from breaking session room
+                if (conn) return; 
                 conn = incomingConn;
                 isHost = true;
                 bindNetworkEvents();
@@ -343,7 +343,6 @@
             if (!gameActive) return;
 
             const rect = canvas.getBoundingClientRect();
-            // Calculate cursor offset position relative to running canvas viewport bounds
             let rawX = e.clientX - rect.left;
             let rawY = e.clientY - rect.top;
 
@@ -356,8 +355,10 @@
                 let boundedX = Math.min(Math.max(rawX, p2.radius), canvas.width - p2.radius);
                 let boundedY = Math.min(Math.max(rawY, padY + p2.radius), canvas.height / 2 - p2.radius);
                 
-                // Directly transmit mouse positions to the host referee calculation pipelines
-                conn.send({ mouseX: boundedX, mouseY: boundedY, clickDash: false });
+                // FIXED: Red transmits the position to the host *during* movement
+                if (conn && conn.open) {
+                    conn.send({ mouseX: boundedX, mouseY: boundedY, clickDash: false });
+                }
             }
         });
 
@@ -369,8 +370,10 @@
                 myCooldown = dashCooldownMax;
             } else {
                 // Tell the host to trigger a dash execution loop for paddle 2
-                conn.send({ mouseX: p2.targetX, mouseY: p2.targetY, clickDash: true });
-                myCooldown = dashCooldownMax;
+                if (conn && conn.open) {
+                    conn.send({ mouseX: p2.targetX, mouseY: p2.targetY, clickDash: true });
+                    myCooldown = dashCooldownMax;
+                }
             }
         });
 
